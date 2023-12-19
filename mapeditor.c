@@ -12,10 +12,9 @@ struct R_FLAGS {
 };
 
 void editor_print(WINDOW*);
-void legendbar_print(int);
 void legend_print(int, char);
 void info_print(int, const char*);
-void init_load(char*, char*);
+void init_str(char*, char*);
 void map_print(WINDOW*, MAP);
 
 int main() {
@@ -24,9 +23,11 @@ int main() {
   struct R_FLAGS flags; flags.sp = 0; flags.gsp = 0;
   int ctrl = (int) 'r';
   int id;
+  int legendbar_pad, legend_pad;
   WINDOW* editor;
   MAP map = {0};
-  FILE* map_f;
+  FILE* map_f = NULL; //without throws SIGSEGV after exiting
+  const char* def_msg = "# - WALL  $ - SPAWNPOINT (1 required)  @ - GHOST SPAWNPOINTS (3 required)";
   char path[16];
   char filename[9];
 
@@ -36,7 +37,7 @@ int main() {
   init_pair(3, COLOR_YELLOW, COLOR_BLACK);
   init_pair(4, COLOR_BLACK, COLOR_RED);
   init_pair(5, COLOR_BLACK, COLOR_WHITE);
-  
+//screen size stuff
   if(getmaxy(stdscr) < 40 || getmaxx(stdscr) < 80) {
     endwin();
     printf("Unsupported screen size.\n Minumum is 40x80 columns.");
@@ -44,23 +45,29 @@ int main() {
     getchar();
     return -1;
   }
-
+  legendbar_pad = getmaxy(stdscr) - 5;
+  legend_pad = getmaxy(stdscr) - 3;
+//init stuff
   mvprintw(0, 2, "CURSEMAN MAP EDITOR");
   mvchgat(0, 0, -1, A_NORMAL, 1, NULL);
-  legend_print(MAP_HEIGHT + 5, 'n');
-  legendbar_print(MAP_HEIGHT + 3);
+  legend_print(legend_pad, 'n'); // 'n' for [n]ormal, 'i' for user [i]nput
+  attron(COLOR_PAIR(1));
+  info_print(legendbar_pad, def_msg);
+  attroff(COLOR_PAIR(1));
 
-  editor = newwin(MAP_HEIGHT+2, MAP_WIDTH+2, 1, getmaxx(stdscr)/2 - MAP_WIDTH/2);
+  editor = newwin(MAP_HEIGHT+2, MAP_WIDTH+2, getmaxy(stdscr)/2 - 2 - MAP_HEIGHT/2, getmaxx(stdscr)/2 - MAP_WIDTH/2);
   editor_print(editor);
-
+//main logic
   cur.y = 1; cur.x = 1;
   curs_set(2);
   while(ctrl != KEY_F(10)) {
     wmove(editor, cur.y, cur.x); // addch moves cursor to the right, need to move it back
-    legend_print(MAP_HEIGHT + 5, 'n');
+    legend_print(legend_pad, 'n');
     wrefresh(stdscr); wrefresh(editor);
     ctrl = getch();
-    legendbar_print(MAP_HEIGHT + 3);
+    attron(COLOR_PAIR(1));
+    info_print(legendbar_pad, def_msg);
+    attroff(COLOR_PAIR(1));
     wmove(editor, cur.y, cur.x);
     wrefresh(editor);
     switch(ctrl) {
@@ -91,18 +98,18 @@ int main() {
         break;
       case (int)'g':
         if(map[cur.y - 1][cur.x - 1] || flags.gsp == 3) { //want to fail for every non-empty space
-          wattron(stdscr, COLOR_PAIR(4));
-          info_print(MAP_HEIGHT + 3, "Placement error!");
-          wattroff(stdscr, COLOR_PAIR(4));
+          attron(COLOR_PAIR(4));
+          info_print(legendbar_pad, "Placement error!");
+          attroff(COLOR_PAIR(4));
           break;
         } else {
           waddch(editor, '@'); flags.gsp++; map[cur.y - 1][cur.x - 1] = 2; break;
         }
       case (int)'c':
         if(map[cur.y - 1][cur.x - 1] || flags.sp == 1) {
-          wattron(stdscr, COLOR_PAIR(4));
-          info_print(MAP_HEIGHT + 3, "Placement error!");
-          wattroff(stdscr, COLOR_PAIR(4));
+          attron(COLOR_PAIR(4));
+          info_print(legendbar_pad, "Placement error!");
+          attroff(COLOR_PAIR(4));
           break;
         } else {
           waddch(editor, '$'); flags.sp++; map[cur.y - 1][cur.x - 1] = 3; break;
@@ -111,42 +118,76 @@ int main() {
       case KEY_F(1):
         //reset vars
         id = 0;
-        init_load(filename, path);
+        init_str(filename, path);
 
-        legend_print(MAP_HEIGHT + 5, 'i');
-        wattron(stdscr, COLOR_PAIR(5));
-        info_print(MAP_HEIGHT + 3, "Filename to load (8 char incl. '.bin'): ./maps/");
+        legend_print(legend_pad, 'i');
+        attron(COLOR_PAIR(5));
+        info_print(legendbar_pad, "Filename to load (8 char incl. '.bin'): ./maps/");
         echo();
-        mvwgetnstr(stdscr, MAP_HEIGHT + 3, 49, filename, 8);
+        mvgetnstr(legendbar_pad, 49, filename, 8);
         noecho();
-        wattroff(stdscr, COLOR_PAIR(5));
+        attroff(COLOR_PAIR(5));
         //quick strcat no need for libraries
         while(path[id] != '\0') id++;
         for(int i = 0; i < 9; i++) { //no brain juice for size security, always assume 8 char fname
           path[id+i] = filename[i];
         }
 
-        map_f = fopen("./maps/test.bin", "rb");
+        map_f = fopen(path, "rb");
         if(map_f == NULL) {
-          wattron(stdscr, COLOR_PAIR(4));
-          info_print(MAP_HEIGHT + 3, "Specified file doesn't exist!");
-          wattroff(stdscr, COLOR_PAIR(4));
+          attron(COLOR_PAIR(4));
+          info_print(legendbar_pad, "Specified file doesn't exist!");
+          attroff(COLOR_PAIR(4));
         } else if(fread(&map, sizeof(map[0][0]), sizeof(map), map_f) < sizeof(map)) {
-          wattron(stdscr, COLOR_PAIR(4));
-          info_print(MAP_HEIGHT + 3, "Unknown loading error!"); 
-          wattroff(stdscr, COLOR_PAIR(4));
+          attron(COLOR_PAIR(4));
+          info_print(legendbar_pad, "Unknown loading error!"); 
+          attroff(COLOR_PAIR(4));
         } else {
-          wattron(stdscr, COLOR_PAIR(2));
-          info_print(MAP_HEIGHT + 3, "File loaded successfully!");
-          wattroff(stdscr, COLOR_PAIR(2));
-          map_print(editor, map);          
+          attron(COLOR_PAIR(2));
+          info_print(legendbar_pad, "File loaded successfully!");
+          attroff(COLOR_PAIR(2));
+          map_print(editor, map);      
+        }
+        break;
+      case KEY_F(2):
+        if(flags.sp != 1 || flags.gsp < 3) {
+          attron(COLOR_PAIR(4));
+          info_print(legendbar_pad, "Cannot save a map not meeting the requirements.");
+          attroff(COLOR_PAIR(4));
+        } else {
+          id = 0;
+          init_str(filename, path);
+
+          legend_print(legend_pad, 'i');
+          attron(COLOR_PAIR(5));
+          info_print(legendbar_pad, "Filename to save (8 char incl. '.bin'): ./maps/");
+          echo();
+          mvgetnstr(legendbar_pad, 49, filename, 8);
+          noecho();
+          attroff(COLOR_PAIR(5));
+          //quick strcat no need for libraries
+          while(path[id] != '\0') id++;
+          for(int i = 0; i < 9; i++) { //no brain juice for size security, always assume 8 char fname
+            path[id+i] = filename[i];
+          }
+
+          map_f = fopen(path, "wb"); // todo: check 'x' flag for "w" and implement overwrite protection
+          if(fwrite(&map, sizeof(map[0][0]), sizeof(map), map_f) < sizeof(map)) {
+            attron(COLOR_PAIR(4));
+            info_print(legendbar_pad, "ERROR: File didn't save properly!");
+            attroff(COLOR_PAIR(4));
+          } else {
+            attron(COLOR_PAIR(2));
+            info_print(legendbar_pad, "Saved successfully!");
+            attroff(COLOR_PAIR(2));
+          }
         }
         break;
       default:
         break;
     }
   }
-  fclose(map_f);
+  if(map_f != NULL) fclose(map_f);
   endwin();
   return 0;
 }
@@ -156,11 +197,6 @@ void editor_print(WINDOW* win) {
   wattron(win, COLOR_PAIR(3)); 
   wborder(win, ACS_BOARD, ACS_BOARD, ACS_BOARD, ACS_BOARD, ACS_BOARD, ACS_BOARD, ACS_BOARD, ACS_BOARD);
   wattroff(win, COLOR_PAIR(3));
-}
-
-void legendbar_print(int win_y) {
-  mvprintw(win_y,  0, "  # - WALL  $ - SPAWNPOINT  @ - GHOST SPAWNPOINTS (3 required)");
-  mvchgat(win_y, 0, -1, A_NORMAL, 1, NULL);
 }
 
 void legend_print(int win_y, char mode) {
@@ -198,11 +234,11 @@ void legend_print(int win_y, char mode) {
 }
 
 void info_print(int win_y, const char* message) {
-  mvhline(win_y, 0, ' ', getmaxx(stdscr));
+  mvhline(win_y, 0, ' ', getmaxx(stdscr)); //clear legendbar
   mvprintw(win_y, 2, "%s", message);
 }
 
-void init_load(char* fname, char* path) {
+void init_str(char* fname, char* path) {
   const char c_path[8] = "./maps/"; 
   *fname = '\0';
   //dirty?
