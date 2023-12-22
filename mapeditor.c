@@ -55,7 +55,7 @@ int main() {
   info_print(legendbar_pad, def_msg);
   attroff(COLOR_PAIR(1));
 
-  editor = newwin(MAP_HEIGHT+2, MAP_WIDTH+2, getmaxy(stdscr)/2 - 2 - MAP_HEIGHT/2, getmaxx(stdscr)/2 - MAP_WIDTH/2);
+  editor = newwin(MAP_HEIGHT+2, MAP_WIDTH+2, getmaxy(stdscr)/2 - 3 - MAP_HEIGHT/2, getmaxx(stdscr)/2 - MAP_WIDTH/2);
   editor_print(editor);
 //main logic
   cur.y = 1; cur.x = 1;
@@ -97,7 +97,7 @@ int main() {
         }
         break;
       case (int)'g':
-        if(map[cur.y - 1][cur.x - 1] || flags.gsp == 3) { //want to fail for every non-empty space
+        if(map[cur.y - 1][cur.x - 1] || flags.gsp >= 3) { //want to fail for every non-empty space
           attron(COLOR_PAIR(4));
           info_print(legendbar_pad, "Placement error!");
           attroff(COLOR_PAIR(4));
@@ -106,7 +106,7 @@ int main() {
           waddch(editor, '@'); flags.gsp++; map[cur.y - 1][cur.x - 1] = 2; break;
         }
       case (int)'c':
-        if(map[cur.y - 1][cur.x - 1] || flags.sp == 1) {
+        if(map[cur.y - 1][cur.x - 1] || flags.sp >= 1) {
           attron(COLOR_PAIR(4));
           info_print(legendbar_pad, "Placement error!");
           attroff(COLOR_PAIR(4));
