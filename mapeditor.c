@@ -15,7 +15,7 @@ void editor_print(WINDOW*);
 void legend_print(int, char);
 void info_print(int, const char*);
 void init_str(char*, char*);
-void map_print(WINDOW*, MAP);
+void map_print(WINDOW*, MAP, struct R_FLAGS*);
 
 int main() {
   setlocale(LC_ALL, "");
@@ -90,8 +90,14 @@ int main() {
         break;
       //placement
       case (int)'s':
-        if(map[cur.y - 1][cur.x - 1]) {
+        if(map[cur.y - 1][cur.x - 1] == 1) {
           waddch(editor, ' '); map[cur.y - 1][cur.x - 1] = 0;//addch moves cursor to the right, moving it back
+        } else if(map[cur.y - 1][cur.x - 1] == 2) {
+          waddch(editor, ' '); map[cur.y - 1][cur.x - 1] = 0;
+          flags.gsp--;
+        } else if(map[cur.y - 1][cur.x - 1] == 3) {
+          waddch(editor, ' '); map[cur.y - 1][cur.x - 1] = 0;
+          flags.sp = 0;
         } else {
           waddch(editor, '#'); map[cur.y - 1][cur.x - 1] = 1;
         }
@@ -106,13 +112,13 @@ int main() {
           waddch(editor, '@'); flags.gsp++; map[cur.y - 1][cur.x - 1] = 2; break;
         }
       case (int)'c':
-        if(map[cur.y - 1][cur.x - 1] || flags.sp >= 1) {
+        if(map[cur.y - 1][cur.x - 1] || flags.sp == 1) {
           attron(COLOR_PAIR(4));
           info_print(legendbar_pad, "Placement error!");
           attroff(COLOR_PAIR(4));
           break;
         } else {
-          waddch(editor, '$'); flags.sp++; map[cur.y - 1][cur.x - 1] = 3; break;
+          waddch(editor, '$'); flags.sp = 1; map[cur.y - 1][cur.x - 1] = 3; break;
         }
       //interaction
       case KEY_F(1):
@@ -132,7 +138,6 @@ int main() {
         for(int i = 0; i < 9; i++) { //no brain juice for size security, always assume 8 char fname
           path[id+i] = filename[i];
         }
-
         map_f = fopen(path, "rb");
         if(map_f == NULL) {
           attron(COLOR_PAIR(4));
@@ -146,11 +151,12 @@ int main() {
           attron(COLOR_PAIR(2));
           info_print(legendbar_pad, "File loaded successfully!");
           attroff(COLOR_PAIR(2));
-          map_print(editor, map);      
+          flags.sp = 0; flags.gsp = 0;
+          map_print(editor, map, &flags);      
         }
         break;
       case KEY_F(2):
-        if(flags.sp != 1 || flags.gsp < 3) {
+        if(flags.sp != 1 || flags.gsp != 3) {
           attron(COLOR_PAIR(4));
           info_print(legendbar_pad, "Cannot save a map not meeting the requirements.");
           attroff(COLOR_PAIR(4));
@@ -171,7 +177,7 @@ int main() {
             path[id+i] = filename[i];
           }
 
-          map_f = fopen(path, "wb"); // todo: check 'x' flag for "w" and implement overwrite protection
+          map_f = fopen(path, "wb"); // todo: check 'x' flag for 'w' and implement overwrite protection
           if(fwrite(&map, sizeof(map[0][0]), sizeof(map), map_f) < sizeof(map)) {
             attron(COLOR_PAIR(4));
             info_print(legendbar_pad, "ERROR: File didn't save properly!");
@@ -247,12 +253,19 @@ void init_str(char* fname, char* path) {
   }
 }
 
-void map_print(WINDOW* win, MAP map) {
+void map_print(WINDOW* win, MAP map, struct R_FLAGS* flags) {
   for(int y = 0; y < MAP_HEIGHT; y++) {
     for(int x = 0; x < MAP_WIDTH; x++) {
       if(map[y][x] == 1) mvwaddch(win, y+1, x+1, '#');
-      else if(map[y][x] == 2) mvwaddch(win, y+1, x+1, '@');
-      else if(map[y][x] == 3) mvwaddch(win, y+1, y+1, '$');
+      else if(map[y][x] == 2) {
+        mvwaddch(win, y+1, x+1, '@');
+        (flags->gsp)++;
+      } else if(map[y][x] == 3) {
+        mvwaddch(win, y+1, y+1, '$');
+        (flags->sp)++;
+      } else {
+        mvwaddch(win, y+1, x+1, ' ');
+      }
     }
   }
 }
