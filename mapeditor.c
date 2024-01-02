@@ -13,8 +13,8 @@ struct R_FLAGS {
 
 void editor_print(WINDOW*);
 void legend_print(int, char);
-void info_print(int, const char*);
-void init_str(char*, char*);
+extern void info_print(int, const char*);
+extern void init_str(char*, char*);
 void map_print(WINDOW*, MAP, struct R_FLAGS*);
 
 int main() {
@@ -28,8 +28,8 @@ int main() {
   MAP map = {0};
   FILE* map_f = NULL; //without throws SIGSEGV after exiting
   const char* def_msg = "# - WALL  $ - SPAWNPOINT (1 required)  @ - GHOST SPAWNPOINTS (3 required)";
-  char path[16];
-  char filename[9];
+  char path[MAX_PATH];
+  char filename[MAX_FNAME];
 
   initscr(); keypad(stdscr, TRUE); curs_set(0); start_color(); noecho();
   init_pair(1, COLOR_BLACK, COLOR_YELLOW);
@@ -40,7 +40,7 @@ int main() {
 //screen size stuff
   if(getmaxy(stdscr) < 40 || getmaxx(stdscr) < 80) {
     endwin();
-    printf("Unsupported screen size.\n Minumum is 40x80 columns.");
+    printf("Unsupported screen size.\nMinumum is 40x80 columns.");
     fflush(stdin);
     getchar();
     return -1;
@@ -130,7 +130,7 @@ int main() {
         attron(COLOR_PAIR(5));
         info_print(legendbar_pad, "Filename to load (8 char incl. '.bin'): ./maps/");
         echo();
-        mvgetnstr(legendbar_pad, 49, filename, 8);
+        mvgetnstr(legendbar_pad, 49, filename, MAX_FNAME - 1);
         noecho();
         attroff(COLOR_PAIR(5));
         //quick strcat no need for libraries
@@ -236,20 +236,6 @@ void legend_print(int win_y, char mode) {
 
     mvchgat(win_y, 2, 2, A_NORMAL, 1, NULL);
     mvchgat(win_y + 1, 2, 2, A_NORMAL, 1, NULL);
-  }
-}
-
-void info_print(int win_y, const char* message) {
-  mvhline(win_y, 0, ' ', getmaxx(stdscr)); //clear legendbar
-  mvprintw(win_y, 2, "%s", message);
-}
-
-void init_str(char* fname, char* path) {
-  const char c_path[8] = "./maps/"; 
-  *fname = '\0';
-  //dirty?
-  for(int i = 0; i < 8; i++) {
-    path[i] = c_path[i];
   }
 }
 
