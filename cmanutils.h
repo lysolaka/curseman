@@ -1,3 +1,4 @@
+#define C_GHOSTS 3
 #define MAP_HEIGHT 32
 #define MAP_WIDTH 64
 #define MAX_FNAME 9
@@ -10,4 +11,5 @@ typedef unsigned char MAP_W[MAP_HEIGHT+2][MAP_WIDTH+2];
 #define C_RIGHT 'r'
 #define C_DOWN 'd'
 #define C_LEFT 'l'
+#define C_STATIONARY 's'
 

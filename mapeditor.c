@@ -103,7 +103,7 @@ int main() {
         }
         break;
       case (int)'g':
-        if(map[cur.y - 1][cur.x - 1] || flags.gsp >= 3) { //want to fail for every non-empty space
+        if(map[cur.y - 1][cur.x - 1] || flags.gsp >= C_GHOSTS) { //want to fail for every non-empty space
           attron(COLOR_PAIR(4));
           info_print(legendbar_pad, "Placement error!");
           attroff(COLOR_PAIR(4));
@@ -156,7 +156,7 @@ int main() {
         }
         break;
       case KEY_F(2):
-        if(flags.sp != 1 || flags.gsp != 3) {
+        if(flags.sp != 1 || flags.gsp != C_GHOSTS) {
           attron(COLOR_PAIR(4));
           info_print(legendbar_pad, "Cannot save a map not meeting the requirements.");
           attroff(COLOR_PAIR(4));

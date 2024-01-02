@@ -1,6 +1,8 @@
 #include <locale.h>
 #include <ncurses.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 #include "cmanutils.h"
 
 typedef struct A {
@@ -8,10 +10,16 @@ typedef struct A {
   int y;
   int x;
   char nextmove;
+  char hitflags[4]; //unused for player | 0 means no collision on specified side |
+                    //hitflag index: 0 - top, 1 - right, 2 - bottom, 3 - left
 } ACTOR;
 
 extern void info_print(int, const char*);
 extern void init_str(char*, char*);
+
+void process_ghosts(ACTOR*);
+void move_actor(ACTOR*, MAP_W, WINDOW*);
+void update_hitflags(ACTOR*, MAP_W);
 
 int main() {
   MAP map;
@@ -21,17 +29,20 @@ int main() {
   int ctrl;
 
   ACTOR player; player.display = 'C';
-  ACTOR ghost[3]; ghost[0].display = '@'; ghost[1].display = '@'; ghost[2].display = '@';
+  ACTOR ghost[C_GHOSTS];
+  for(int i = 0; i < C_GHOSTS; i++) ghost[i].display = '@';
   int ghost_count = 0;
 
   char filename[MAX_FNAME];
   char path[MAX_PATH];
   int str_i;
 
+  srand(time(0));
   setlocale(LC_ALL, "");
   initscr(); keypad(stdscr, TRUE); curs_set(0); start_color(); noecho();
   init_pair(1, COLOR_BLACK, COLOR_YELLOW);
   init_pair(2, COLOR_YELLOW, COLOR_BLACK);
+  init_pair(3, COLOR_MAGENTA, COLOR_BLACK);
 //screen size stuff
   if(getmaxy(stdscr) < 40 || getmaxx(stdscr) < 80) {
     endwin();
@@ -134,22 +145,46 @@ int main() {
       }
     }
   }
+  // fill in hitflags for ghosts, they will be used to avoid moving ghosts into walls
+  for(int i = 0; i < C_GHOSTS; i++) {
+    ghost[i].hitflags[0] = 0;
+    if(game[ghost[i].y - 1][ghost[i].x] == 1) ghost[i].hitflags[0] = 1;
+    ghost[i].hitflags[1] = 0;
+    if(game[ghost[i].y][ghost[i].x + 1] == 1) ghost[i].hitflags[1] = 1;
+    ghost[i].hitflags[2] = 0;
+    if(game[ghost[i].y + 1][ghost[i].x] == 1) ghost[i].hitflags[2] = 1;
+    ghost[i].hitflags[3] = 0;
+    if(game[ghost[i].y][ghost[i].x - 1] == 1) ghost[i].hitflags[3] = 1;
+  }
 
   halfdelay(5);
 
   while(ctrl != KEY_F(10)) {
+    for(int i = 0; i < C_GHOSTS; i++) update_hitflags(&ghost[i], game);
     wrefresh(cman);
     ctrl = getch();
     switch(ctrl) {
       case KEY_UP:
-        mvwaddch(cman, player.y, player.x, player.display);
-        player.y--;
+        player.nextmove = C_UP;
+        break;
+      case KEY_RIGHT:
+        player.nextmove = C_RIGHT;
+        break;
+      case KEY_DOWN:
+        player.nextmove = C_DOWN;
+        break;
+      case KEY_LEFT:
+        player.nextmove = C_LEFT;
         break;
       default:
-        mvwaddch(cman, ghost[0].y, ghost[0].x, ghost[0].display);
-        ghost[0].y--;
+        player.nextmove = C_STATIONARY;
         break;
     }
+    process_ghosts(ghost);
+    for(int i = 0; i < C_GHOSTS; i++) {
+      move_actor(&ghost[i], game, cman);
+    }
+    move_actor(&player, game, cman);
   }
 
   wrefresh(cman);
@@ -157,4 +192,114 @@ int main() {
   endwin();
 
   return 0;
+}
+
+void process_ghosts(ACTOR* ghost) {
+  for(int i = 0; i < C_GHOSTS; i++) {
+    if(ghost[i].hitflags[0]) { // hitflag - up
+      if(rand() % 2) {
+        ghost[i].nextmove = C_DOWN;
+      } else {
+        if(rand() % 2) ghost[i].nextmove = C_LEFT;
+        else ghost[i].nextmove = C_RIGHT;
+      }
+    } else if(ghost[i].hitflags[2]) { // hitflag - down
+      // up and down are more probable, because MAP_HEIGHT < MAP_WIDTH
+      // makes code spaghetti but we need this order
+      if(rand() % 2) {
+        ghost[i].nextmove = C_UP;
+      } else {
+        if(rand() % 2) ghost[i].nextmove = C_LEFT;
+        else ghost[i].nextmove = C_RIGHT;
+      }
+    } else if(ghost[i].hitflags[1]) { // hitflag - right
+      if(rand() % 2) {
+        ghost[i].nextmove = C_LEFT;
+      } else {
+        if(rand() % 2) ghost[i].nextmove = C_UP;
+        else ghost[i].nextmove = C_DOWN;
+      }
+    } else if(ghost[i].hitflags[3]) { // hitflag - left
+      if(rand() % 2) {
+        ghost[i].nextmove = C_RIGHT;
+      } else {
+        if(rand() % 2) ghost[i].nextmove = C_UP;
+        else ghost[i].nextmove = C_DOWN;
+      }
+    } else {
+      switch(rand() % 4) {
+        case 0:
+          ghost[i].nextmove = C_UP; break;
+        case 1:
+          ghost[i].nextmove = C_RIGHT; break;
+        case 2:
+          ghost[i].nextmove = C_DOWN; break;
+        case 3:
+          ghost[i].nextmove = C_LEFT; break;
+      }
+    }
+  }
+}
+
+void move_actor(ACTOR* actor, MAP_W game, WINDOW* win) {
+  short color = 3;
+  char id = 2; // color - color pair (short), id: 2 - ghost, 3 - player
+  if(actor->display == 'C') {
+    color = 2; id = 3; // switching those values is just a coincidence
+  }
+  switch(actor->nextmove) {
+    case C_UP:
+      if(game[actor->y - 1][actor->x] == 1) break;
+      game[actor->y][actor->x] = 0;
+      mvwaddch(win, actor->y, actor->x, ' ');
+      mvwchgat(win, actor->y, actor->x, 1, A_NORMAL, 0, NULL);
+      (actor->y)--;
+      game[actor->y][actor->x] = id;
+      mvwaddch(win, actor->y, actor->x, actor->display);
+      mvwchgat(win, actor->y, actor->x, 1, A_NORMAL, color, NULL);
+      break;
+    case C_RIGHT:
+      if(game[actor->y][actor->x + 1] == 1) break;
+      game[actor->y][actor->x] = 0;
+      mvwaddch(win, actor->y, actor->x, ' ');
+      mvwchgat(win, actor->y, actor->x, 1, A_NORMAL, 0, NULL);
+      (actor->x)++;
+      game[actor->y][actor->x] = id;
+      mvwaddch(win, actor->y, actor->x, actor->display);
+      mvwchgat(win, actor->y, actor->x, 1, A_NORMAL, color, NULL);
+      break;
+    case C_DOWN:
+      if(game[actor->y + 1][actor->x] == 1) break;
+      game[actor->y][actor->x] = 0;
+      mvwaddch(win, actor->y, actor->x, ' ');
+      mvwchgat(win, actor->y, actor->x, 1, A_NORMAL, 0, NULL);
+      (actor->y)++;
+      game[actor->y][actor->x] = id;
+      mvwaddch(win, actor->y, actor->x, actor->display);
+      mvwchgat(win, actor->y, actor->x, 1, A_NORMAL, color, NULL);
+      break;
+    case C_LEFT:
+      if(game[actor->y][actor->x - 1] == 1) break;
+      game[actor->y][actor->x] = 0;
+      mvwaddch(win, actor->y, actor->x, ' ');
+      mvwchgat(win, actor->y, actor->x, 1, A_NORMAL, 0, NULL);
+      (actor->x)--;
+      game[actor->y][actor->x] = id;
+      mvwaddch(win, actor->y, actor->x, actor->display);
+      mvwchgat(win, actor->y, actor->x, 1, A_NORMAL, color, NULL);
+      break;
+    default:
+      break;
+  }
+}
+
+void update_hitflags(ACTOR* ghost, MAP_W game) {
+    ghost->hitflags[0] = 0;
+    if(game[ghost->y - 1][ghost->x] == 1) ghost->hitflags[0] = 1;
+    ghost->hitflags[1] = 0;
+    if(game[ghost->y][ghost->x + 1] == 1) ghost->hitflags[1] = 1;
+    ghost->hitflags[2] = 0;
+    if(game[ghost->y + 1][ghost->x] == 1) ghost->hitflags[2] = 1;
+    ghost->hitflags[3] = 0;
+    if(game[ghost->y][ghost->x - 1] == 1) ghost->hitflags[3] = 1;
 }
