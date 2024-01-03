@@ -247,7 +247,7 @@ void map_print(WINDOW* win, MAP map, struct R_FLAGS* flags) {
         mvwaddch(win, y+1, x+1, '@');
         (flags->gsp)++;
       } else if(map[y][x] == 3) {
-        mvwaddch(win, y+1, y+1, '$');
+        mvwaddch(win, y+1, x+1, '$');
         (flags->sp)++;
       } else {
         mvwaddch(win, y+1, x+1, ' ');
