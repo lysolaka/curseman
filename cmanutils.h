@@ -13,3 +13,6 @@ typedef unsigned char MAP_W[MAP_HEIGHT+2][MAP_WIDTH+2];
 #define C_LEFT 'l'
 #define C_STATIONARY 's'
 
+#define C_NORMAL 2
+#define C_DREAMER 4
+

@@ -10,16 +10,16 @@ typedef struct A {
   int y;
   int x;
   char nextmove;
-  char hitflags[4]; //unused for player | 0 means no collision on specified side |
+  char hitflags[4]; //now used for player too! | 0 means no collision on specified side |
                     //hitflag index: 0 - top, 1 - right, 2 - bottom, 3 - left
-  char enabled; //unused for player, determines if ghost is alive, 0 - dead, 1 - alive
+  char enabled; //determines if actor is alive, 0 - dead, 1 - alive
 } ACTOR;
 
 extern void info_print(int, const char*);
 extern void init_str(char*, char*);
 
-void process_ghost(ACTOR*);
-void move_actor(ACTOR*, MAP_W, WINDOW*);
+char process_ghost(ACTOR*);
+void move_actor(ACTOR*, MAP_W, WINDOW*, short);
 void update_hitflags(ACTOR*, MAP_W);
 
 int main() {
@@ -28,6 +28,10 @@ int main() {
   FILE* map_f;
   WINDOW* cman;
   int ctrl;
+
+  short c_gmode = C_DREAMER;
+  int c_mcounter = 0;
+  char c_quitmsg = 0;
 
   ACTOR player; player.display = 'C';
   ACTOR ghost[C_GHOSTS];
@@ -44,6 +48,7 @@ int main() {
   init_pair(1, COLOR_BLACK, COLOR_YELLOW);
   init_pair(2, COLOR_YELLOW, COLOR_BLACK);
   init_pair(3, COLOR_MAGENTA, COLOR_BLACK);
+  init_pair(4, COLOR_RED, COLOR_BLACK);
 //screen size stuff
   if(getmaxy(stdscr) < 40 || getmaxx(stdscr) < 80) {
     endwin();
@@ -55,8 +60,10 @@ int main() {
 //"title screen"
   mvprintw(0, 2, "CURSEMAN");
   mvchgat(0, 0, -1, A_NORMAL, 1, NULL);
+
+
   attron(COLOR_PAIR(1));
-  info_print(getmaxy(stdscr) - 5, "Filename to load (8 char incl. '.bin'): ./maps/");
+  info_print(getmaxy(stdscr) - 5, "Filename to load (8 char incl. '.map'): ./maps/");
   refresh();
   curs_set(1); echo();
   init_str(filename, path);
@@ -139,7 +146,7 @@ int main() {
       if(game[y][x] == 3) { //find player spawn
         player.y = y; player.x = x;
       }
-      if(game[y][x] == 2 && ghost_count < 4) { //find ghosts spawn
+      if(game[y][x] == 2 && ghost_count < C_GHOSTS) { //find ghosts spawn
         ghost[ghost_count].y = y;
         ghost[ghost_count].x = x;
         ghost_count++;
@@ -153,12 +160,40 @@ int main() {
     ghost[i].enabled = 1;
   }
 
-  halfdelay(5);
+  halfdelay(3);
 
   while(ctrl != KEY_F(10)) {
+    mvprintw(getmaxy(stdscr) - 2, 2, "%d", ghost_count);
+    refresh();
+    if(c_gmode == C_DREAMER) {
+      for(int i = 0; i < C_GHOSTS; i++) { // because of my 'smart' decision to implement ghosts as ACTOR[3] we have this, because we can't check around the player all the time since ghost are not distinguishable
+        if((game[ghost[i].y - 1][ghost[i].x] == 3 || game[ghost[i].y][ghost[i].x + 1] == 3 || game[ghost[i].y + 1][ghost[i].x] == 3 || game[ghost[i].y][ghost[i].x - 1] == 3) && ghost[i].enabled) {
+          ghost[i].enabled = 0;
+          mvwaddch(cman, ghost[i].y, ghost[i].x, ' ');
+          game[ghost[i].y][ghost[i].x] = 0;
+          ghost_count--; // will be used for win/loss condition
+        }
+      }
+    } else { // I think that we won't get any values other than the two defined
+      if(game[player.y - 1][player.x] == 2 || game[player.y][player.x + 1] == 2 || game[player.y + 1][player.x] == 2 || game[player.y][player.x - 1] == 2) {
+        player.enabled = 0;
+      }
+    }
+
     for(int i = 0; i < C_GHOSTS; i++) update_hitflags(&ghost[i], game);
+    update_hitflags(&player, game);
     wrefresh(cman);
-    ctrl = getch();
+
+    ctrl = getch(); // really didn't want to separete it from the stuff
+    // win/loss check needs to be here for easy interruption with KEY_F(10)
+    if(player.enabled == 0) {
+      ctrl = KEY_F(10);
+      c_quitmsg = 1;
+    } else if(ghost_count == 0) {
+      ctrl = KEY_F(10);
+      c_quitmsg = 2;
+    }
+
     switch(ctrl) {
       case KEY_UP:
         player.nextmove = C_UP;
@@ -176,14 +211,24 @@ int main() {
         player.nextmove = C_STATIONARY;
         break;
     }
-    // two separate loops to ensure proper sequence of events
+    // separate loops to ensure proper sequence of events
     for(int i = 0; i < C_GHOSTS; i++) {
-      if(ghost[i].enabled) process_ghost(&ghost[i]);
+      if(ghost[i].enabled) ghost[i].nextmove = process_ghost(&ghost[i]);
     }
+    // check for mode changes to make them display in time
+    if(c_mcounter > 150 && c_gmode == C_NORMAL) {
+      c_mcounter = 0;
+      c_gmode = C_DREAMER;
+    } else if(c_mcounter > 100 && c_gmode == C_DREAMER) {
+      c_mcounter = 0;
+      c_gmode = C_NORMAL;
+    }
+
     for(int i = 0; i < C_GHOSTS; i++) {
-      if(ghost[i].enabled) move_actor(&ghost[i], game, cman);
+      if(ghost[i].enabled) move_actor(&ghost[i], game, cman, c_gmode);
     }
-    move_actor(&player, game, cman);
+    move_actor(&player, game, cman, c_gmode);
+    c_mcounter++;
   }
 
   wrefresh(cman);
@@ -192,22 +237,21 @@ int main() {
 
   return 0;
 }
-
-// could be returning char as for nextmove, but would be slightly harder to read
-void process_ghost(ACTOR* ghost) { // there should be a switch for multiple conditions like switch(a && b && c && d) case a==1; b==0; c==1; d==1:
+// there was bullshit previously here
+char process_ghost(ACTOR* ghost) { // there should be a switch for multiple conditions like switch(a && b && c && d) case a==1; b==0; c==1; d==1:
   if(ghost->hitflags[0] && !ghost->hitflags[1] && ghost->hitflags[2] && !ghost->hitflags[3]) {
     // we want clean corridor movement
     switch(ghost->nextmove) {
       case C_LEFT:
-        break; // moving in a valid direction? good.
+        return C_LEFT; // moving in a valid direction? good.
       case C_RIGHT:
-        break;
+        return C_RIGHT;
       default:
         switch(rand() % 2) {
           case 0:
-            ghost->nextmove = C_RIGHT; break;
+            return C_RIGHT;
           case 1:
-            ghost->nextmove = C_LEFT; break;
+            return C_LEFT;
         }
         break;
     }
@@ -215,15 +259,15 @@ void process_ghost(ACTOR* ghost) { // there should be a switch for multiple cond
     // need for clean again, if ghosts are placed properly no wall grinding on the sides should happen
     switch(ghost->nextmove) {
       case C_UP:
-        break;
+        return C_UP;
       case C_DOWN:
-        break;
+        return C_DOWN;
       default:
         switch(rand() % 2) {
           case 0:
-            ghost->nextmove = C_DOWN; break;
+            return C_DOWN;
           case 1:
-            ghost->nextmove = C_UP; break;
+            return C_UP;
         }
         break;
     }
@@ -231,120 +275,285 @@ void process_ghost(ACTOR* ghost) { // there should be a switch for multiple cond
     // U shaped spot (open only on top), dead end
     switch(rand() % 10) {
       case 0:
-        ghost->nextmove = C_STATIONARY; break; // small chance to remain in there for a bit
+        return C_STATIONARY; // small chance to remain in there for a bit
       default:
-        ghost->nextmove = C_UP; break;
+        return C_UP;
     }
   } else if(ghost->hitflags[0] && !ghost->hitflags[1] && ghost->hitflags[2] && ghost->hitflags[3]) {
     // dead end open right only
     switch(rand() % 10) {
       case 3: // case is diffrent for more spicyness
-        ghost->nextmove = C_STATIONARY; break;
+        return C_STATIONARY;
       default:
-        ghost->nextmove = C_RIGHT; break;
+        return C_RIGHT;
     }
   } else if(ghost->hitflags[0] && ghost->hitflags[1] && !ghost->hitflags[2] && ghost->hitflags[3]) {
     // dead end open bottom
     switch(rand() % 10) {
       case 7: 
-        ghost->nextmove = C_STATIONARY; break;
+        return C_STATIONARY;
       default:
-        ghost->nextmove = C_DOWN; break;
+        return C_DOWN;
     }
   } else if(ghost->hitflags[0] && ghost->hitflags[1] && ghost->hitflags[2] && !ghost->hitflags[3]) {
     // open left
     switch(rand() % 10) {
       case 1: 
-        ghost->nextmove = C_STATIONARY; break;
+        return C_STATIONARY;
       default:
-        ghost->nextmove = C_LEFT; break;
+        return C_LEFT;
     }
   } else if(!ghost->hitflags[0] && !ghost->hitflags[1] && ghost->hitflags[2] && ghost->hitflags[3]) {
     // corner (open top, open right)
     // also want clean movement
-    if(ghost->nextmove == C_DOWN) ghost->nextmove = C_RIGHT;
-    else ghost->nextmove = C_UP; // this might make sense with more hitflag hacks
-                                 // todo: make hitflags better, no they will stay as an array, no new struct, because too much changes would be needed
-                                 // done!
+    if(ghost->nextmove == C_DOWN) return C_RIGHT;
+    else if(ghost->nextmove == C_LEFT) return C_UP; // this might make sense with more hitflag hacks
+                                                    // todo: make hitflags better, no they will stay as an array, no new struct, because too much changes would be needed
+                                                    // done!
+    else {
+      switch(rand() % 2) {
+        case 0:
+          return C_RIGHT;
+        case 1:
+          return C_UP;
+      }
+    }
   } else if(ghost->hitflags[0] && !ghost->hitflags[1] && !ghost->hitflags[2] && ghost->hitflags[3]) {
     // open right, open bottom
-    if(ghost->nextmove == C_LEFT) ghost->nextmove = C_DOWN;
-    else ghost->nextmove = C_RIGHT;
+    if(ghost->nextmove == C_LEFT) return C_DOWN;
+    else if(ghost->nextmove == C_DOWN) return C_RIGHT;
+    else {
+      switch(rand() % 2) {
+        case 0:
+          return C_DOWN;
+        case 1:
+          return C_RIGHT;
+      }
+    }
   } else if(ghost->hitflags[0] && ghost->hitflags[1] && !ghost->hitflags[2] && !ghost->hitflags[3]) {
     // open bottom, open left
-    if(ghost->nextmove == C_UP) ghost->nextmove = C_LEFT;
-    else ghost->nextmove = C_DOWN;
+    if(ghost->nextmove == C_UP) return C_LEFT;
+    else if(ghost->nextmove == C_RIGHT) return C_DOWN;
+    else {
+      switch(rand() % 2) {
+        case 0:
+          return C_LEFT;
+        case 1:
+          return C_DOWN;
+      }
+    }
   } else if(!ghost->hitflags[0] && ghost->hitflags[1] && ghost->hitflags[2] && !ghost->hitflags[3]) {
     // open left, open top
-    if(ghost->nextmove == C_RIGHT) ghost->nextmove = C_UP;
-    else ghost->nextmove = C_LEFT;
+    if(ghost->nextmove == C_RIGHT) return C_UP;
+    else if(ghost->nextmove == C_DOWN) return C_LEFT;
+    else {
+      switch(rand() % 2) {
+        case 0:
+          return C_UP;
+        case 1:
+          return C_LEFT;
+      }
+    }
   } else if(ghost->hitflags[0] && !ghost->hitflags[1] && !ghost->hitflags[2] && !ghost->hitflags[3]) {
     // T junction time, unfortunately becasue of some bad map design this code might run for some cross junctions, explained more in hitflag detection
     // fixed!
     // todo: make the ghost choose a direction diffrent from the one he's coming from
+    // done!
     // this one is closed top
-    switch(rand() % 3) {
-      case 0:
-        ghost->nextmove = C_RIGHT; break;
-      case 1:
-        ghost->nextmove = C_DOWN; break;
-      case 2:
-        ghost->nextmove = C_LEFT; break;
+    if(ghost->nextmove == C_LEFT) {
+      switch(rand() % 2) {
+        case 0:
+          return C_RIGHT;
+        case 1:
+          return C_DOWN;
+      }
+    } else if(ghost->nextmove == C_UP) {
+      switch(rand() % 2) {
+        case 0:
+          return C_RIGHT;
+        case 1:
+          return C_LEFT;
+      }
+    } else if(ghost->nextmove == C_RIGHT) {
+      switch(rand() % 2) {
+        case 0:
+          return C_LEFT;
+        case 1:
+          return C_DOWN;
+      }
+    } else { // if the ghost's hitflags get effed
+      switch(rand() % 3) {
+        case 0:
+          return C_RIGHT;
+        case 1:
+          return C_DOWN;
+        case 2:
+          return C_LEFT;
+      }
     }
   } else if(!ghost->hitflags[0] && ghost->hitflags[1] && !ghost->hitflags[2] && !ghost->hitflags[3]) {
     // closed right
-    switch(rand() % 3) {
-      case 0:
-        ghost->nextmove = C_UP; break;
-      case 1:
-        ghost->nextmove = C_DOWN; break;
-      case 2:
-        ghost->nextmove = C_LEFT; break;
+    if(ghost->nextmove == C_RIGHT) {
+      switch(rand() % 2) {
+        case 0:
+          return C_UP;
+        case 1:
+          return C_DOWN;
+      }
+    } else if(ghost->nextmove == C_UP) {
+      switch(rand() % 2) {
+        case 0:
+          return C_UP;
+        case 1:
+          return C_LEFT;
+      }
+    } else if(ghost->nextmove == C_DOWN) {
+      switch(rand() % 2) {
+        case 0:
+          return C_LEFT;
+        case 1:
+          return C_DOWN;
+      }
+    } else {
+      switch(rand() % 3) {
+        case 0:
+          return C_UP;
+        case 1:
+          return C_DOWN;
+        case 2:
+          return C_LEFT;
+      }
     }
   } else if(!ghost->hitflags[0] && !ghost->hitflags[1] && ghost->hitflags[2] && !ghost->hitflags[3]) {
     // closed bottom
-    switch(rand() % 3) {
-      case 0:
-        ghost->nextmove = C_UP; break;
-      case 1:
-        ghost->nextmove = C_RIGHT; break;
-      case 2:
-        ghost->nextmove = C_LEFT; break;
+    if(ghost->nextmove == C_LEFT) {
+      switch(rand() % 2) {
+        case 0:
+          return C_UP;
+        case 1:
+          return C_LEFT;
+      }
+    } else if(ghost->nextmove == C_RIGHT) {
+      switch(rand() % 2) {
+        case 0:
+          return C_UP;
+        case 1:
+          return C_RIGHT;
+      }
+    } else if(ghost->nextmove == C_DOWN) {
+      switch(rand() % 2) {
+        case 0:
+          return C_LEFT;
+        case 1:
+          return C_RIGHT;
+      }
+    } else {
+      switch(rand() % 3) {
+        case 0:
+          return C_UP;
+        case 1:
+          return C_RIGHT;
+        case 2:
+          return C_LEFT;
+      }
     }
   } else if(!ghost->hitflags[0] && !ghost->hitflags[1] && !ghost->hitflags[2] && ghost->hitflags[3]) {
     // closed left
-    switch(rand() % 3) {
-      case 0:
-        ghost->nextmove = C_UP; break;
-      case 1:
-        ghost->nextmove = C_DOWN; break;
-      case 2:
-        ghost->nextmove = C_RIGHT; break;
+    if(ghost->nextmove == C_LEFT) {
+      switch(rand() % 2) {
+        case 0:
+          return C_UP;
+        case 1:
+          return C_DOWN;
+      }
+    } else if(ghost->nextmove == C_UP) {
+      switch(rand() % 2) {
+        case 0:
+          return C_UP;
+        case 1:
+          return C_RIGHT;
+      }
+    } else if(ghost->nextmove == C_DOWN) {
+      switch(rand() % 2) {
+        case 0:
+          return C_DOWN;
+        case 1:
+          return C_RIGHT;
+      }
+    } else {
+      switch(rand() % 3) {
+        case 0:
+          return C_UP;
+        case 1:
+          return C_RIGHT;
+        case 2:
+          return C_DOWN;
+      }
     }
-  } else {
+
+  } else if(!ghost->hitflags[0] && !ghost->hitflags[1] && !ghost->hitflags[2] && !ghost->hitflags[3]) {
     // actual cross junction
-    switch(rand() % 4) {
-      case 0:
-        ghost->nextmove = C_UP; break;
-      case 1:
-        ghost->nextmove = C_RIGHT; break;
-      case 2:
-        ghost->nextmove = C_DOWN; break;
-      case 3:
-        ghost->nextmove = C_LEFT; break;
+    if(ghost->nextmove == C_DOWN) {
+      switch(rand() % 3) {
+        case 0:
+          return C_RIGHT;
+        case 1:
+          return C_DOWN;
+        case 2:
+          return C_LEFT;
+      }
+    } else if(ghost->nextmove == C_LEFT) {
+      switch(rand() % 3) {
+        case 0:
+          return C_UP;
+        case 1:
+          return C_DOWN;
+        case 2:
+          return C_LEFT;
+      }
+    } else if(ghost->nextmove == C_UP) {
+      switch(rand() % 3) {
+        case 0:
+          return C_UP;
+        case 1:
+          return C_RIGHT;
+        case 2:
+          return C_LEFT;
+      }
+    } else if(ghost->nextmove == C_RIGHT) {
+      switch(rand() % 3) {
+        case 0:
+          return C_UP;
+        case 1:
+          return C_RIGHT;
+        case 2:
+          return C_DOWN;
+      }
+    } else {
+      switch(rand() % 4) {
+        case 0:
+          return C_UP;
+        case 1:
+          return C_RIGHT;
+        case 2:
+          return C_DOWN;
+        case 3:
+          return C_LEFT;
+      }
     }
   }
+  return C_STATIONARY; // in case something happens we will see | it was actually useful when debugging ;)
 }
 
-void move_actor(ACTOR* actor, MAP_W game, WINDOW* win) {
+void move_actor(ACTOR* actor, MAP_W game, WINDOW* win, short mode) {
   short color = 3;
-  char id = 2; // color - color pair (short), id: 2 - ghost, 3 - player
+  unsigned char id = 2; // color - color pair (short), id: 2 - ghost, 3 - player
   if(actor->display == 'C') {
-    color = 2; id = 3; // switching those values is just a coincidence
+    color = mode; id = 3; // by design the color for the player is the same as the mode value defined in header
   }
   switch(actor->nextmove) {
     case C_UP:
-      if(game[actor->y - 1][actor->x] == 1) break;
+      if(actor->hitflags[0]) break;
       game[actor->y][actor->x] = 0;
       mvwaddch(win, actor->y, actor->x, ' ');
       mvwchgat(win, actor->y, actor->x, 1, A_NORMAL, 0, NULL);
@@ -354,7 +563,7 @@ void move_actor(ACTOR* actor, MAP_W game, WINDOW* win) {
       mvwchgat(win, actor->y, actor->x, 1, A_NORMAL, color, NULL);
       break;
     case C_RIGHT:
-      if(game[actor->y][actor->x + 1] == 1) break;
+      if(actor->hitflags[1]) break;
       game[actor->y][actor->x] = 0;
       mvwaddch(win, actor->y, actor->x, ' ');
       mvwchgat(win, actor->y, actor->x, 1, A_NORMAL, 0, NULL);
@@ -364,7 +573,7 @@ void move_actor(ACTOR* actor, MAP_W game, WINDOW* win) {
       mvwchgat(win, actor->y, actor->x, 1, A_NORMAL, color, NULL);
       break;
     case C_DOWN:
-      if(game[actor->y + 1][actor->x] == 1) break;
+      if(actor->hitflags[2]) break;
       game[actor->y][actor->x] = 0;
       mvwaddch(win, actor->y, actor->x, ' ');
       mvwchgat(win, actor->y, actor->x, 1, A_NORMAL, 0, NULL);
@@ -374,7 +583,7 @@ void move_actor(ACTOR* actor, MAP_W game, WINDOW* win) {
       mvwchgat(win, actor->y, actor->x, 1, A_NORMAL, color, NULL);
       break;
     case C_LEFT:
-      if(game[actor->y][actor->x - 1] == 1) break;
+      if(actor->hitflags[3]) break;
       game[actor->y][actor->x] = 0;
       mvwaddch(win, actor->y, actor->x, ' ');
       mvwchgat(win, actor->y, actor->x, 1, A_NORMAL, 0, NULL);
@@ -389,16 +598,17 @@ void move_actor(ACTOR* actor, MAP_W game, WINDOW* win) {
 }
 // because the text mode isn't square and the map is 64x32 (x,y), making vertical paths wider makes them prettier
 // placing the ghosts properly wouldn't require the check 1 position away, but allowing user created content is a pain
-// there are also corner checks to avoid premature cross junction behaviour
-//
+// there are also corner checks to avoid premature cross junction behaviour for ghosts
 // todo: check if those hitflags could be used to constrain player movement aswell
-void update_hitflags(ACTOR* ghost, MAP_W game) {
-  ghost->hitflags[0] = 0;
-  if(game[ghost->y - 1][ghost->x] == 1 || game[ghost->y - 1][ghost->x + 1] == 1 || game[ghost->y - 1][ghost->x - 1] == 1) ghost->hitflags[0] = 1;
-  ghost->hitflags[1] = 0;
-  if(game[ghost->y][ghost->x + 1] == 1 || game[ghost->y][ghost->x + 2] == 1) ghost->hitflags[1] = 1;
-  ghost->hitflags[2] = 0;
-  if(game[ghost->y + 1][ghost->x] == 1 || game[ghost->y + 1][ghost->x + 1] == 1 || game[ghost->y + 1][ghost->x - 1] == 1) ghost->hitflags[2] = 1;
-  ghost->hitflags[3] = 0;
-  if(game[ghost->y][ghost->x - 1] == 1 || game[ghost->y][ghost->x - 2]) ghost->hitflags[3] = 1;
+// done!
+// potential issue: some incorect player placements (for eg. in a custom map) may lead to a softlock | solution: cope with your skill issue or implement player spawnpoint checks in the editor
+void update_hitflags(ACTOR* actor, MAP_W game) {
+  actor->hitflags[0] = 0;
+  if(game[actor->y - 1][actor->x] == 1 || game[actor->y - 1][actor->x + 1] == 1 || game[actor->y - 1][actor->x - 1] == 1) actor->hitflags[0] = 1;
+  actor->hitflags[1] = 0;
+  if(game[actor->y][actor->x + 1] == 1 || game[actor->y][actor->x + 2] == 1) actor->hitflags[1] = 1;
+  actor->hitflags[2] = 0;
+  if(game[actor->y + 1][actor->x] == 1 || game[actor->y + 1][actor->x + 1] == 1 || game[actor->y + 1][actor->x - 1] == 1) actor->hitflags[2] = 1;
+  actor->hitflags[3] = 0;
+  if(game[actor->y][actor->x - 1] == 1 || game[actor->y][actor->x - 2]) actor->hitflags[3] = 1;
 }

@@ -128,7 +128,7 @@ int main() {
 
         legend_print(legend_pad, 'i');
         attron(COLOR_PAIR(5));
-        info_print(legendbar_pad, "Filename to load (8 char incl. '.bin'): ./maps/");
+        info_print(legendbar_pad, "Filename to load (8 char incl. '.map'): ./maps/");
         echo();
         mvgetnstr(legendbar_pad, 49, filename, MAX_FNAME - 1);
         noecho();
@@ -166,14 +166,14 @@ int main() {
 
           legend_print(legend_pad, 'i');
           attron(COLOR_PAIR(5));
-          info_print(legendbar_pad, "Filename to save (8 char incl. '.bin'): ./maps/");
+          info_print(legendbar_pad, "Filename to save (8 char incl. '.map'): ./maps/");
           echo();
           mvgetnstr(legendbar_pad, 49, filename, 8);
           noecho();
           attroff(COLOR_PAIR(5));
           //quick strcat no need for libraries
           while(path[id] != '\0') id++;
-          for(int i = 0; i < 9; i++) { //no brain juice for size security, always assume 8 char fname
+          for(int i = 0; i < 9; i++) { //no brain juice for size security, always assume 8 char fname, apparently it's not an issue (?)
             path[id+i] = filename[i];
           }
 
@@ -232,9 +232,11 @@ void legend_print(int win_y, char mode) {
     mvhline(win_y, 0, ' ', getmaxx(stdscr)); // Clear lines first
     mvhline(win_y + 1, 0, ' ', getmaxx(stdscr));
     mvprintw(win_y, 2, "^H Remove 1 character");
+    mvprintw(win_y, 25, "Enter Confirm");
     mvprintw(win_y + 1, 2, "^U Clear all characters");
 
     mvchgat(win_y, 2, 2, A_NORMAL, 1, NULL);
+    mvchgat(win_y, 25, 5, A_NORMAL, 1, NULL);
     mvchgat(win_y + 1, 2, 2, A_NORMAL, 1, NULL);
   }
 }
