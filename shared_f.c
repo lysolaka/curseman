@@ -21,6 +21,6 @@ void append_str(char* fname, char* path) {
   for(int i = 0; i < MAX_FNAME; i++) path[str_i+i] = fname[i];
 }
 // put instructions and credits here to avoid messing code
-const char* INSTRUCTIONS = "some text\nmore text uwu";
+const char* INSTRUCTIONS = "WELCOME TO CURSEMAN!\nYou have been trapped in some sort of a maze with deadly\nghosts. Use arrow keys to run from them.\nBut not all hope is lost! Every so often Curseman will get\nso mad at running away from ghosts, that he will curse them\nand dream of killing them.\nThat dream would last only for a while, but is real.\nThe game ends:\n1. When Curseman dies or,\n2. All ghosts leave Curseman alone and die.\nIn this game the lower the score the better.";
 const char* CREDITS = "Inspired by PAC-MAN (arcade game by Capcom)\nProgrammed by ****** ****** (me)\nBEWARE! Unix CURSES technology is being used in this software!";
 

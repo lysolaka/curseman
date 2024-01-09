@@ -148,6 +148,13 @@ int main() {
             }
           }
           print_map(cman, &player, ghost, game, &ghost_count);
+          // add player and ghosts to the screen
+          wattron(cman, COLOR_PAIR(player.color) | A_BOLD);
+          mvwaddch(cman, player.y, player.x, player.display);
+          wattroff(cman, COLOR_PAIR(player.color)); // let the bold carry over
+          wattron(cman, COLOR_PAIR(ghost[0].color)); // all ghost have the same colour
+          for(int i = 0; i < C_GHOSTS; i++) mvwaddch(cman, ghost[i].y, ghost[i].x, ghost[i].display);
+          wattroff(cman, COLOR_PAIR(ghost[0].color) | A_BOLD);
           wrefresh(cman);
           attron(COLOR_PAIR(6));
           info_print(getmaxy(stdscr) - 5, "Map loaded successfully");
@@ -324,14 +331,14 @@ int main() {
         c_quitmsg = 0;
         map_loaded = 0;
         wclear(cman); wrefresh(cman);
+        attron(COLOR_PAIR(1));
+        info_print(getmaxy(stdscr) - 5, "Welcome to CURSEMAN");
+        attroff(COLOR_PAIR(1));
         break;
       default:
         break;
     }
   }
-
-  wrefresh(cman);
-  getchar();
   endwin();
 
   return 0;
@@ -650,41 +657,41 @@ void move_actor(ACTOR* actor, MAP_W game, WINDOW* win) {
       if(actor->hitflags[0]) break;
       game[actor->y][actor->x] = 0;
       mvwaddch(win, actor->y, actor->x, ' ');
-      mvwchgat(win, actor->y, actor->x, 1, A_NORMAL, 0, NULL);
+      mvwchgat(win, actor->y, actor->x, 1, A_BOLD, 0, NULL);
       (actor->y)--;
       game[actor->y][actor->x] = actor->id;
       mvwaddch(win, actor->y, actor->x, actor->display);
-      mvwchgat(win, actor->y, actor->x, 1, A_NORMAL, actor->color, NULL);
+      mvwchgat(win, actor->y, actor->x, 1, A_BOLD, actor->color, NULL);
       break;
     case C_RIGHT:
       if(actor->hitflags[1]) break;
       game[actor->y][actor->x] = 0;
       mvwaddch(win, actor->y, actor->x, ' ');
-      mvwchgat(win, actor->y, actor->x, 1, A_NORMAL, 0, NULL);
+      mvwchgat(win, actor->y, actor->x, 1, A_BOLD, 0, NULL);
       (actor->x)++;
       game[actor->y][actor->x] = actor->id;
       mvwaddch(win, actor->y, actor->x, actor->display);
-      mvwchgat(win, actor->y, actor->x, 1, A_NORMAL, actor->color, NULL);
+      mvwchgat(win, actor->y, actor->x, 1, A_BOLD, actor->color, NULL);
       break;
     case C_DOWN:
       if(actor->hitflags[2]) break;
       game[actor->y][actor->x] = 0;
       mvwaddch(win, actor->y, actor->x, ' ');
-      mvwchgat(win, actor->y, actor->x, 1, A_NORMAL, 0, NULL);
+      mvwchgat(win, actor->y, actor->x, 1, A_BOLD, 0, NULL);
       (actor->y)++;
       game[actor->y][actor->x] = actor->id;
       mvwaddch(win, actor->y, actor->x, actor->display);
-      mvwchgat(win, actor->y, actor->x, 1, A_NORMAL, actor->color, NULL);
+      mvwchgat(win, actor->y, actor->x, 1, A_BOLD, actor->color, NULL);
       break;
     case C_LEFT:
       if(actor->hitflags[3]) break;
       game[actor->y][actor->x] = 0;
       mvwaddch(win, actor->y, actor->x, ' ');
-      mvwchgat(win, actor->y, actor->x, 1, A_NORMAL, 0, NULL);
+      mvwchgat(win, actor->y, actor->x, 1, A_BOLD, 0, NULL);
       (actor->x)--;
       game[actor->y][actor->x] = actor->id;
       mvwaddch(win, actor->y, actor->x, actor->display);
-      mvwchgat(win, actor->y, actor->x, 1, A_NORMAL, actor->color, NULL);
+      mvwchgat(win, actor->y, actor->x, 1, A_BOLD, actor->color, NULL);
       break;
     default:
       break;

@@ -62,7 +62,7 @@ int main() {
   cur.y = 1; cur.x = 1;
   curs_set(2);
   while(ctrl != KEY_F(10)) {
-    //wmove(editor, cur.y, cur.x); // addch moves cursor to the right, need to move it back // unnecessary wmove (?)
+    wmove(editor, cur.y, cur.x); // addch moves cursor to the right, need to move it back
     legend_print(legend_pad, 'n');
     wrefresh(stdscr); wrefresh(editor);
     ctrl = getch();
