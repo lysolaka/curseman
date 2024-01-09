@@ -15,6 +15,7 @@ void editor_print(WINDOW*);
 void legend_print(int, char);
 extern void info_print(int, const char*);
 extern void init_str(char*, char*);
+extern void append_str(char*, char*);
 void map_print(WINDOW*, MAP, struct R_FLAGS*);
 
 int main() {
@@ -61,7 +62,7 @@ int main() {
   cur.y = 1; cur.x = 1;
   curs_set(2);
   while(ctrl != KEY_F(10)) {
-    wmove(editor, cur.y, cur.x); // addch moves cursor to the right, need to move it back
+    //wmove(editor, cur.y, cur.x); // addch moves cursor to the right, need to move it back // unnecessary wmove (?)
     legend_print(legend_pad, 'n');
     wrefresh(stdscr); wrefresh(editor);
     ctrl = getch();
@@ -134,10 +135,7 @@ int main() {
         noecho();
         attroff(COLOR_PAIR(5));
         //quick strcat no need for libraries
-        while(path[id] != '\0') id++;
-        for(int i = 0; i < 9; i++) { //no brain juice for size security, always assume 8 char fname
-          path[id+i] = filename[i];
-        }
+        append_str(filename, path);
         map_f = fopen(path, "rb");
         if(map_f == NULL) {
           attron(COLOR_PAIR(4));
@@ -171,11 +169,7 @@ int main() {
           mvgetnstr(legendbar_pad, 49, filename, 8);
           noecho();
           attroff(COLOR_PAIR(5));
-          //quick strcat no need for libraries
-          while(path[id] != '\0') id++;
-          for(int i = 0; i < 9; i++) { //no brain juice for size security, always assume 8 char fname, apparently it's not an issue (?)
-            path[id+i] = filename[i];
-          }
+          append_str(filename, path);
 
           map_f = fopen(path, "wb"); // todo: check 'x' flag for 'w' and implement overwrite protection
           if(fwrite(&map, sizeof(map[0][0]), sizeof(map), map_f) < sizeof(map)) {
