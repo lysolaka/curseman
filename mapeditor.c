@@ -152,6 +152,7 @@ int main() {
           flags.sp = 0; flags.gsp = 0;
           map_print(editor, map, &flags);      
         }
+        if(map_f != NULL) fclose(map_f);
         break;
       case KEY_F(2):
         if(flags.sp != 1 || flags.gsp != C_GHOSTS) {
@@ -181,6 +182,8 @@ int main() {
             info_print(legendbar_pad, "Saved successfully!");
             attroff(COLOR_PAIR(2));
           }
+          // file pointer shouldn't be null
+          fclose(map_f);
         }
         break;
       default:

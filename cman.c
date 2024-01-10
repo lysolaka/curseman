@@ -160,6 +160,7 @@ int main() {
           info_print(getmaxy(stdscr) - 5, "Map loaded successfully");
           attroff(COLOR_PAIR(6));
         }
+        if(map_f != NULL) fclose(map_f);
         break;
       case KEY_F(2): // Display instructions
         wclear(text);
