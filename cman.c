@@ -173,11 +173,11 @@ int main() {
         wrefresh(text);
         break;
       case KEY_F(5): // Show cman window
-          wclear(text);
-          wrefresh(text);
-          touchwin(cman); // NCURSES (TM) magic finger
-          wnoutrefresh(cman);
-          wrefresh(cman);
+        wclear(text);
+        wrefresh(text);
+        touchwin(cman); // NCURSES (TM) magic finger
+        wnoutrefresh(cman);
+        wrefresh(cman);
         break;
       case KEY_F(4): // GAME TIME!
         if(map_loaded != 1) {
@@ -185,7 +185,13 @@ int main() {
           info_print(getmaxy(stdscr) - 5, "Load a map first before playing!");
           attroff(COLOR_PAIR(5));
           break;
-        } // not really sure if else is needed, because there's a break in the if statement
+        }
+        // restore cman window in case someone didn't do F5
+        wclear(text);
+        wrefresh(text);
+        touchwin(cman);
+        wnoutrefresh(cman);
+        wrefresh(cman);
         // fill in C_STATIONARY into ghosts to initialize their movement rng
         // fill in enabled flag
         for(int i = 0; i < C_GHOSTS; i++) {
@@ -748,10 +754,10 @@ void legend_print(int win_y, char mode) {
       mvprintw(win_y + 1, 17, "C Curseman (dreamer)");
 
       mvchgat(win_y, 2, 4, A_ALTCHARSET, 1, NULL);
-      mvchgat(win_y, 13, 1, A_NORMAL, C_NORMAL, NULL);
-      mvchgat(win_y, 34, 1, A_NORMAL, 3, NULL);
+      mvchgat(win_y, 13, 1, A_BOLD, C_NORMAL, NULL);
+      mvchgat(win_y, 34, 1, A_BOLD, 3, NULL);
       mvchgat(win_y + 1, 2, 3, A_NORMAL, 1, NULL);
-      mvchgat(win_y + 1, 17, 1, A_NORMAL, C_DREAMER, NULL);
+      mvchgat(win_y + 1, 17, 1, A_BOLD, C_DREAMER, NULL);
       break;
     case 'i':
       mvprintw(win_y, 2, "^H Remove 1 character");
