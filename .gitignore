@@ -1,2 +1,5 @@
 editor
 curseman
+mapeditor.o
+cman.o
+shared_f.o
